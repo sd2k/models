@@ -107,31 +107,31 @@ impl T5ModelConfig {
         let shared = EmbeddingConfig::new(self.vocab_size, self.d_model).init(device);
         T5Model {
             shared: shared.clone(),
-            encoder: T5StackConfig::new(
-                self.n_layers,
-                EncoderOrDecoder::Encoder,
-                self.relative_attention_num_buckets,
-                self.relative_attention_max_distance,
-                self.d_model,
-                self.d_ff,
-                self.d_kv,
-                self.n_heads,
-                self.layer_norm_eps,
-                self.dropout_rate,
-            )
+            encoder: T5StackConfig {
+                n_layers: self.n_layers,
+                ty: EncoderOrDecoder::Encoder,
+                relative_attention_num_buckets: self.relative_attention_num_buckets,
+                relative_attention_max_distance: self.relative_attention_max_distance,
+                d_model: self.d_model,
+                d_ff: self.d_ff,
+                key_value_proj_dim: self.d_kv,
+                num_heads: self.n_heads,
+                layer_norm_epsilon: self.layer_norm_eps,
+                dropout_rate: self.dropout_rate,
+            }
             .init(device, shared.clone()),
-            decoder: T5StackConfig::new(
-                self.n_decoder_layers.unwrap_or(self.n_layers),
-                EncoderOrDecoder::Decoder,
-                self.relative_attention_num_buckets,
-                self.relative_attention_max_distance,
-                self.d_model,
-                self.d_ff,
-                self.d_kv,
-                self.n_heads,
-                self.layer_norm_eps,
-                self.dropout_rate,
-            )
+            decoder: T5StackConfig {
+                n_layers: self.n_decoder_layers.unwrap_or(self.n_layers),
+                ty: EncoderOrDecoder::Decoder,
+                relative_attention_num_buckets: self.relative_attention_num_buckets,
+                relative_attention_max_distance: self.relative_attention_max_distance,
+                d_model: self.d_model,
+                d_ff: self.d_ff,
+                key_value_proj_dim: self.d_kv,
+                num_heads: self.n_heads,
+                layer_norm_epsilon: self.layer_norm_eps,
+                dropout_rate: self.dropout_rate,
+            }
             .init(device, shared),
         }
     }
@@ -171,19 +171,19 @@ impl T5StackConfig {
         let blocks = (0..self.n_layers)
             .map(|i| {
                 let has_relative_attention_bias = i == 0;
-                T5BlockConfig::new(
-                    self.ty,
-                    self.relative_attention_num_buckets,
-                    self.relative_attention_max_distance,
-                    self.d_model,
-                    self.d_ff,
-                    self.key_value_proj_dim,
-                    self.num_heads,
-                    self.layer_norm_epsilon,
-                    self.dropout_rate,
+                T5BlockConfig {
+                    ty: self.ty,
+                    relative_attention_num_buckets: self.relative_attention_num_buckets,
+                    relative_attention_max_distance: self.relative_attention_max_distance,
+                    d_model: self.d_model,
+                    d_ff: self.d_ff,
+                    key_value_proj_dim: self.key_value_proj_dim,
+                    num_heads: self.num_heads,
+                    layer_norm_epsilon: self.layer_norm_epsilon,
+                    dropout_rate: self.dropout_rate,
                     has_relative_attention_bias,
-                    i,
-                )
+                    layer_idx: i,
+                }
                 .init(device)
             })
             .collect();
@@ -224,32 +224,32 @@ struct T5BlockConfig {
 
 impl T5BlockConfig {
     fn init<B: Backend>(&self, device: &B::Device) -> T5Block<B> {
-        let self_attention = T5SelfAttentionConfig::new(
-            self.ty,
-            self.relative_attention_num_buckets,
-            self.relative_attention_max_distance,
-            self.d_model,
-            self.key_value_proj_dim,
-            self.num_heads,
-            self.layer_norm_epsilon,
-            self.dropout_rate,
-            self.layer_idx,
-            self.has_relative_attention_bias,
-        )
+        let self_attention = T5SelfAttentionConfig {
+            ty: self.ty,
+            relative_attention_num_buckets: self.relative_attention_num_buckets,
+            relative_attention_max_distance: self.relative_attention_max_distance,
+            d_model: self.d_model,
+            key_value_proj_dim: self.key_value_proj_dim,
+            num_heads: self.num_heads,
+            layer_norm_epsilon: self.layer_norm_epsilon,
+            dropout_rate: self.dropout_rate,
+            layer_idx: self.layer_idx,
+            has_relative_attention_bias: self.has_relative_attention_bias,
+        }
         .init(device);
         let cross_attention = if self.ty == EncoderOrDecoder::Decoder {
             Some(
-                T5CrossAttentionConfig::new(
-                    self.ty,
-                    self.relative_attention_num_buckets,
-                    self.relative_attention_max_distance,
-                    self.d_model,
-                    self.key_value_proj_dim,
-                    self.num_heads,
-                    self.layer_norm_epsilon,
-                    self.dropout_rate,
-                    self.layer_idx,
-                )
+                T5CrossAttentionConfig {
+                    ty: self.ty,
+                    relative_attention_num_buckets: self.relative_attention_num_buckets,
+                    relative_attention_max_distance: self.relative_attention_max_distance,
+                    d_model: self.d_model,
+                    key_value_proj_dim: self.key_value_proj_dim,
+                    num_heads: self.num_heads,
+                    layer_norm_epsilon: self.layer_norm_epsilon,
+                    dropout_rate: self.dropout_rate,
+                    layer_idx: self.layer_idx,
+                }
                 .init(device),
             )
         } else {
@@ -361,17 +361,17 @@ struct T5SelfAttentionConfig {
 
 impl T5SelfAttentionConfig {
     fn init<B: Backend>(&self, device: &B::Device) -> T5SelfAttention<B> {
-        let self_attention = T5AttentionConfig::new(
-            self.ty,
-            self.relative_attention_num_buckets,
-            self.relative_attention_max_distance,
-            self.d_model,
-            self.key_value_proj_dim,
-            self.num_heads,
-            self.dropout_rate,
-            self.layer_idx,
-        )
-        .with_has_relative_attention_bias(self.has_relative_attention_bias)
+        let self_attention = T5AttentionConfig {
+            ty: self.ty,
+            has_relative_attention_bias: self.has_relative_attention_bias,
+            relative_attention_num_buckets: self.relative_attention_num_buckets,
+            relative_attention_max_distance: self.relative_attention_max_distance,
+            d_model: self.d_model,
+            key_value_proj_dim: self.key_value_proj_dim,
+            num_heads: self.num_heads,
+            dropout_rate: self.dropout_rate,
+            layer_idx: self.layer_idx,
+        }
         .init(device);
         let layer_norm = T5LayerNormConfig {
             d_model: self.d_model,
@@ -434,17 +434,17 @@ struct T5CrossAttentionConfig {
 
 impl T5CrossAttentionConfig {
     fn init<B: Backend>(&self, device: &B::Device) -> T5CrossAttention<B> {
-        let cross_attention = T5AttentionConfig::new(
-            self.ty,
-            self.relative_attention_num_buckets,
-            self.relative_attention_max_distance,
-            self.d_model,
-            self.key_value_proj_dim,
-            self.num_heads,
-            self.dropout_rate,
-            self.layer_idx,
-        )
-        .with_has_relative_attention_bias(false)
+        let cross_attention = T5AttentionConfig {
+            ty: self.ty,
+            has_relative_attention_bias: false,
+            relative_attention_num_buckets: self.relative_attention_num_buckets,
+            relative_attention_max_distance: self.relative_attention_max_distance,
+            d_model: self.d_model,
+            key_value_proj_dim: self.key_value_proj_dim,
+            num_heads: self.num_heads,
+            dropout_rate: self.dropout_rate,
+            layer_idx: self.layer_idx,
+        }
         .init(device);
         let layer_norm = T5LayerNormConfig {
             d_model: self.d_model,
