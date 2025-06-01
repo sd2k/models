@@ -1,0 +1,13 @@
+[package]
+name = "t5-burn"
+version = "0.1.0"
+edition = "2024"
+authors = ["Ben Sully <ben.sully88@gmail.com>"]
+description = "T5 transformer implementation using the Burn ML framework"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+burn = { version = "0.17.0", features = ["fusion"] }
+
+[dev-dependencies]
+clap = { version = "4.5.4", features = ["derive"] }
