@@ -10,7 +10,7 @@ pub use attention::{
     T5CrossAttention, T5CrossAttentionConfig, T5CrossAttentionInput, T5SelfAttention,
     T5SelfAttentionConfig, T5SelfAttentionInput,
 };
-pub use block::{T5Block, T5BlockConfig};
+pub use block::{T5Block, T5BlockConfig, T5BlockInput, T5BlockOutput};
 pub use feed_forward::{
     T5DenseGatedAct, T5DenseGatedActConfig, T5FeedForward, T5FeedForwardConfig,
 };
