@@ -269,7 +269,45 @@ impl T5BlockConfig {
 
 struct AttentionOutput<B: Backend, const D: usize> {
     output: Tensor<B, D>,
-    attentions: Vec<Tensor<B, D>>,
+    attentions: Option<Tensor<B, D>>,
+}
+
+struct T5AttentionInput<B: Backend, const D: usize> {
+    hidden_states: Tensor<B, D>,
+    attention_mask: Option<Tensor<B, D>>,
+    key_value_states: Option<Tensor<B, D>>,
+    position_bias: Option<Tensor<B, D>>,
+    past_key_value: Option<Tensor<B, D>>,
+    layer_head_mask: Option<Tensor<B, D>>,
+    query_length: Option<usize>,
+    use_cache: bool,
+    output_attentions: bool,
+    cache_position: Option<bool>,
+}
+
+struct T5SelfAttentionInput<B: Backend, const D: usize> {
+    hidden_states: Tensor<B, D>,
+    attention_mask: Option<Tensor<B, D>>,
+    position_bias: Option<Tensor<B, D>>,
+    layer_head_mask: Option<Tensor<B, D>>,
+    past_key_value: Option<Tensor<B, D>>,
+    use_cache: bool,
+    query_length: Option<usize>,
+    output_attentions: bool,
+    cache_position: Option<bool>,
+}
+
+struct T5CrossAttentionInput<B: Backend, const D: usize> {
+    hidden_states: Tensor<B, D>,
+    key_value_states: Tensor<B, D>,
+    attention_mask: Option<Tensor<B, D>>,
+    position_bias: Option<Tensor<B, D>>,
+    layer_head_mask: Option<Tensor<B, D>>,
+    past_key_value: Option<Tensor<B, D>>,
+    use_cache: bool,
+    query_length: Option<usize>,
+    output_attentions: bool,
+    cache_position: Option<bool>,
 }
 
 #[derive(Module, Debug)]
@@ -280,32 +318,23 @@ struct T5SelfAttention<B: Backend> {
 }
 
 impl<B: Backend> T5SelfAttention<B> {
-    fn forward<const D: usize>(
-        &self,
-        hidden_states: Tensor<B, D>,
-        attention_mask: Option<Tensor<B, D>>,
-        position_bias: Option<Tensor<B, D>>,
-        layer_head_mask: Option<Tensor<B, D>>,
-        past_key_value: Option<Tensor<B, D>>,
-        use_cache: bool,
-        query_length: Option<usize>,
-        output_attentions: bool,
-        cache_position: Option<bool>,
-    ) -> AttentionOutput<B, D> {
-        let normed_hidden_states = self.layer_norm.forward(hidden_states.clone());
-        let AttentionOutput { output, attentions } = self.self_attention.forward(
-            normed_hidden_states,
-            attention_mask,
-            None,
-            position_bias,
-            past_key_value,
-            layer_head_mask,
-            query_length,
-            use_cache,
-            output_attentions,
-            cache_position,
-        );
-        let layer_output = hidden_states + self.dropout.forward(output);
+    fn forward<const D: usize>(&self, input: T5SelfAttentionInput<B, D>) -> AttentionOutput<B, D> {
+        let normed_hidden_states = self.layer_norm.forward(input.hidden_states.clone());
+        let attention_input = T5AttentionInput {
+            hidden_states: normed_hidden_states,
+            attention_mask: input.attention_mask,
+            key_value_states: None, // not used in self-attention
+            position_bias: input.position_bias,
+            past_key_value: input.past_key_value,
+            layer_head_mask: input.layer_head_mask,
+            query_length: input.query_length,
+            use_cache: input.use_cache,
+            output_attentions: input.output_attentions,
+            cache_position: input.cache_position,
+        };
+
+        let AttentionOutput { output, attentions } = self.self_attention.forward(attention_input);
+        let layer_output = input.hidden_states + self.dropout.forward(output);
         AttentionOutput {
             output: layer_output,
             attentions,
@@ -359,27 +388,23 @@ struct T5CrossAttention<B: Backend> {
 }
 
 impl<B: Backend> T5CrossAttention<B> {
-    fn forward<const D: usize>(
-        &self,
-        hidden_states: Tensor<B, D>,
-        key_value_states: Tensor<B, D>,
-        attention_mask: Option<Tensor<B, D>>,
-        position_bias: Option<Tensor<B, D>>,
-    ) -> AttentionOutput<B, D> {
-        let normed_hidden_states = self.layer_norm.forward(hidden_states);
-        let AttentionOutput { output, attentions } = self.cross_attention.forward(
-            normed_hidden_states,
-            Some(key_value_states),
-            attention_mask,
-            position_bias,
-            layer_head_mask,
-            past_key_value,
-            use_cache,
-            query_length,
-            output_attentions,
-            cache_position,
-        );
-        let layer_output = hidden_states + self.dropout.forward(output);
+    fn forward<const D: usize>(&self, input: T5CrossAttentionInput<B, D>) -> AttentionOutput<B, D> {
+        let normed_hidden_states = self.layer_norm.forward(input.hidden_states.clone());
+        let attention_input = T5AttentionInput {
+            hidden_states: normed_hidden_states,
+            attention_mask: input.attention_mask,
+            key_value_states: Some(input.key_value_states),
+            position_bias: input.position_bias,
+            past_key_value: input.past_key_value,
+            layer_head_mask: input.layer_head_mask,
+            query_length: input.query_length,
+            use_cache: input.use_cache,
+            output_attentions: input.output_attentions,
+            cache_position: input.cache_position,
+        };
+
+        let AttentionOutput { output, attentions } = self.cross_attention.forward(attention_input);
+        let layer_output = input.hidden_states + self.dropout.forward(output);
         AttentionOutput {
             output: layer_output,
             attentions,
@@ -508,19 +533,28 @@ struct T5Attention<B: Backend> {
 }
 
 impl<B: Backend> T5Attention<B> {
-    fn forward<const D: usize>(
-        &self,
-        hidden_states: Tensor<B, D>,
-        attention_mask: Option<Tensor<B, D>>,
-        key_value_states: Option<Tensor<B, D>>,
-        position_bias: Option<Tensor<B, D>>,
-        past_key_value: Option<Tensor<B, D>>,
-        layer_head_mask: Option<Tensor<B, D>>,
-        query_length: Option<usize>,
-        use_cache: bool,
-        output_attentions: bool,
-        cache_position: Option<bool>,
-    ) -> AttentionOutput<B, D> {
+    /// Forward pass through the attention mechanism
+    ///
+    /// # Example
+    /// ```
+    /// use burn::prelude::*;
+    ///
+    /// // Usage with direct struct initialization
+    /// let input = T5AttentionInput {
+    ///     hidden_states,
+    ///     attention_mask: Some(attention_mask),
+    ///     key_value_states: Some(key_value_states),
+    ///     position_bias: None,
+    ///     past_key_value: None,
+    ///     layer_head_mask: None,
+    ///     query_length: None,
+    ///     use_cache: true,
+    ///     output_attentions: true,
+    ///     cache_position: None,
+    /// };
+    /// let output = attention.forward(input);
+    /// ```
+    fn forward<const D: usize>(&self, input: T5AttentionInput<B, D>) -> AttentionOutput<B, D> {
         todo!()
     }
 }
