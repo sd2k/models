@@ -1,11 +1,11 @@
 use burn::{
     config::Config,
-    nn::{
-        Dropout, DropoutConfig, Embedding, EmbeddingConfig, Gelu, Linear, LinearConfig, RmsNorm,
-        RmsNormConfig,
-    },
+    nn::{Dropout, DropoutConfig, Embedding, EmbeddingConfig, Linear, LinearConfig},
     prelude::*,
 };
+
+use crate::feed_forward::{T5FeedForward, T5FeedForwardConfig};
+use crate::layer_norm::{T5LayerNorm, T5LayerNormConfig};
 
 #[derive(Config, Debug)]
 pub struct T5ModelConfig {
@@ -190,8 +190,11 @@ impl T5StackConfig {
         T5Stack {
             embed_tokens,
             blocks,
-            final_layer_norm: T5LayerNormConfig::new(self.d_model, self.layer_norm_epsilon)
-                .init(device),
+            final_layer_norm: T5LayerNormConfig {
+                d_model: self.d_model,
+                layer_norm_epsilon: self.layer_norm_epsilon,
+            }
+            .init(device),
             dropout: DropoutConfig::new(self.dropout_rate).init(),
         }
     }
@@ -252,12 +255,12 @@ impl T5BlockConfig {
         } else {
             None
         };
-        let ff = T5FeedForwardConfig::new(
-            self.d_model,
-            self.d_ff,
-            self.layer_norm_epsilon,
-            self.dropout_rate,
-        )
+        let ff = T5FeedForwardConfig {
+            d_model: self.d_model,
+            d_ff: self.d_ff,
+            layer_norm_epsilon: self.layer_norm_epsilon,
+            dropout_rate: self.dropout_rate,
+        }
         .init(device);
         T5Block {
             self_attention,
@@ -370,7 +373,11 @@ impl T5SelfAttentionConfig {
         )
         .with_has_relative_attention_bias(self.has_relative_attention_bias)
         .init(device);
-        let layer_norm = T5LayerNormConfig::new(self.d_model, self.layer_norm_epsilon).init(device);
+        let layer_norm = T5LayerNormConfig {
+            d_model: self.d_model,
+            layer_norm_epsilon: self.layer_norm_epsilon,
+        }
+        .init(device);
         let dropout = DropoutConfig::new(self.dropout_rate).init();
         T5SelfAttention {
             self_attention,
@@ -439,86 +446,16 @@ impl T5CrossAttentionConfig {
         )
         .with_has_relative_attention_bias(false)
         .init(device);
-        let layer_norm = T5LayerNormConfig::new(self.d_model, self.layer_norm_epsilon).init(device);
+        let layer_norm = T5LayerNormConfig {
+            d_model: self.d_model,
+            layer_norm_epsilon: self.layer_norm_epsilon,
+        }
+        .init(device);
         let dropout = DropoutConfig::new(self.dropout_rate).init();
         T5CrossAttention {
             cross_attention,
             layer_norm,
             dropout,
-        }
-    }
-}
-
-#[derive(Module, Debug)]
-struct T5FeedForward<B: Backend> {
-    dense: T5DenseGatedAct<B>,
-    layer_norm: T5LayerNorm<B>,
-    dropout: Dropout,
-}
-
-#[derive(Config, Debug)]
-struct T5FeedForwardConfig {
-    d_model: usize,
-    d_ff: usize,
-    layer_norm_epsilon: f64,
-    dropout_rate: f64,
-}
-
-impl T5FeedForwardConfig {
-    fn init<B: Backend>(&self, device: &B::Device) -> T5FeedForward<B> {
-        let dense =
-            T5DenseGatedActConfig::new(self.d_model, self.d_ff, self.dropout_rate).init(device);
-        let layer_norm = T5LayerNormConfig::new(self.d_model, self.layer_norm_epsilon).init(device);
-        let dropout = DropoutConfig::new(self.dropout_rate).init();
-        T5FeedForward {
-            dense,
-            layer_norm,
-            dropout,
-        }
-    }
-}
-
-#[derive(Module, Debug)]
-struct T5DenseGatedAct<B: Backend> {
-    wi_0: Linear<B>,
-    wi_1: Linear<B>,
-    wo: Linear<B>,
-    dropout: Dropout,
-    activation: Gelu,
-}
-
-impl<B: Backend> T5DenseGatedAct<B> {
-    fn forward<const D: usize>(&self, x: Tensor<B, D>) -> Tensor<B, D> {
-        let hidden_gelu = self.activation.forward(self.wi_0.forward(x));
-        let hidden_linear = self.wi_1.forward(hidden_gelu.clone());
-        let hidden_states = hidden_gelu * hidden_linear;
-        let hidden_states = self.dropout.forward(hidden_states);
-        let hidden_states = self.wo.forward(hidden_states);
-        hidden_states
-    }
-}
-
-#[derive(Config, Debug)]
-struct T5DenseGatedActConfig {
-    d_model: usize,
-    d_ff: usize,
-    dropout_rate: f64,
-}
-
-impl T5DenseGatedActConfig {
-    fn init<B: Backend>(&self, device: &B::Device) -> T5DenseGatedAct<B> {
-        T5DenseGatedAct {
-            wi_0: LinearConfig::new(self.d_model, self.d_ff)
-                .with_bias(false)
-                .init(device),
-            wi_1: LinearConfig::new(self.d_model, self.d_ff)
-                .with_bias(false)
-                .init(device),
-            wo: LinearConfig::new(self.d_ff, self.d_model)
-                .with_bias(false)
-                .init(device),
-            dropout: DropoutConfig::new(self.dropout_rate).init(),
-            activation: Gelu::new(),
         }
     }
 }
@@ -604,89 +541,5 @@ impl T5AttentionConfig {
             dense,
             relative_attention_bias,
         }
-    }
-}
-
-/// A layer normalization layer in the T5 style (no bias or subtraction of mean).
-#[derive(Module, Debug)]
-struct T5LayerNorm<B: Backend> {
-    layer_norm: RmsNorm<B>,
-}
-
-impl<B: Backend> T5LayerNorm<B> {
-    fn forward<const D: usize>(&self, x: Tensor<B, D>) -> Tensor<B, D> {
-        self.layer_norm.forward(x)
-    }
-}
-
-/// Configuration to create a [`T5LayerNorm`] layer.
-#[derive(Config, Debug)]
-struct T5LayerNormConfig {
-    d_model: usize,
-    layer_norm_epsilon: f64,
-}
-
-impl T5LayerNormConfig {
-    fn init<B: Backend>(&self, device: &B::Device) -> T5LayerNorm<B> {
-        T5LayerNorm {
-            layer_norm: RmsNormConfig::new(self.d_model)
-                .with_epsilon(self.layer_norm_epsilon)
-                .init(device),
-        }
-    }
-}
-
-#[cfg(test)]
-mod test_t5_layer_norm {
-    use burn::prelude::*;
-    use burn_ndarray::NdArrayTensor;
-    use ndarray::Array2;
-    use numpy::ToPyArray;
-    use pyo3::{
-        Python,
-        ffi::c_str,
-        types::{PyDict, PyDictMethods},
-    };
-
-    type Backend = burn_ndarray::NdArray<f64>;
-
-    use super::T5LayerNormConfig;
-
-    #[test]
-    fn t5_layer_norm() {
-        let device = Default::default();
-        let raw = (0..9).map(f64::from).collect::<Vec<_>>();
-        let ndarray_input = Array2::from_shape_vec((3, 3), raw.clone()).unwrap();
-        let burn_input = Tensor::<_, 2>::from_data(TensorData::new(raw, [3, 3]), &device);
-
-        let layer_norm = T5LayerNormConfig::new(3, 1e-5).init::<Backend>(&device);
-        let output = layer_norm.forward(burn_input);
-        let output = NdArrayTensor::<f64>::from_data(output.into_data());
-
-        Python::with_gil(|py| {
-            let pyarray = ndarray_input.to_pyarray(py);
-            let locals = PyDict::new(py);
-            locals.set_item("input", pyarray).unwrap();
-            locals
-                .set_item("output", output.array.to_pyarray(py))
-                .unwrap();
-            py.run(
-                c_str!(
-                    r#"
-from transformers.models.t5.modeling_t5 import T5LayerNorm
-import torch
-
-layer_norm = T5LayerNorm(3, 1e-5)
-input = torch.from_numpy(locals()["input"])
-output = torch.from_numpy(locals()["output"])
-expected = layer_norm(input)
-assert torch.allclose(expected, output, atol=1e-4)
-                "#
-                ),
-                None,
-                Some(&locals),
-            )
-            .unwrap();
-        });
     }
 }
