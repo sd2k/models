@@ -10,4 +10,8 @@ license = "MIT OR Apache-2.0"
 burn = { version = "0.17.0", features = ["fusion"] }
 
 [dev-dependencies]
+burn-ndarray = "0.17.0"
 clap = { version = "4.5.4", features = ["derive"] }
+ndarray = "0.16.1"
+numpy = "0.25.0"
+pyo3 = { version = "0.25.0", features = ["auto-initialize"] }
