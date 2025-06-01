@@ -43,24 +43,20 @@ impl T5BlockConfig {
             has_relative_attention_bias: self.has_relative_attention_bias,
         }
         .init(device);
-        let cross_attention = if self.ty == EncoderOrDecoder::Decoder {
-            Some(
-                T5CrossAttentionConfig {
-                    ty: self.ty,
-                    relative_attention_num_buckets: self.relative_attention_num_buckets,
-                    relative_attention_max_distance: self.relative_attention_max_distance,
-                    d_model: self.d_model,
-                    key_value_proj_dim: self.key_value_proj_dim,
-                    num_heads: self.num_heads,
-                    layer_norm_epsilon: self.layer_norm_epsilon,
-                    dropout_rate: self.dropout_rate,
-                    layer_idx: self.layer_idx,
-                }
-                .init(device),
-            )
-        } else {
-            None
-        };
+        let cross_attention = (self.ty == EncoderOrDecoder::Decoder).then_some(
+            T5CrossAttentionConfig {
+                ty: self.ty,
+                relative_attention_num_buckets: self.relative_attention_num_buckets,
+                relative_attention_max_distance: self.relative_attention_max_distance,
+                d_model: self.d_model,
+                key_value_proj_dim: self.key_value_proj_dim,
+                num_heads: self.num_heads,
+                layer_norm_epsilon: self.layer_norm_epsilon,
+                dropout_rate: self.dropout_rate,
+                layer_idx: self.layer_idx,
+            }
+            .init(device),
+        );
         let ff = T5FeedForwardConfig {
             d_model: self.d_model,
             d_ff: self.d_ff,
