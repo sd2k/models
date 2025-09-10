@@ -897,6 +897,11 @@ mod test_t5_attention {
     }
 
     #[test]
+    fn test_t5_self_attention_vs_python() {
+        crate::test_utils::test_t5_self_attention_comparison();
+    }
+
+    #[test]
     fn test_t5_attention_functional() {
         let device = NdArrayDevice::default();
 

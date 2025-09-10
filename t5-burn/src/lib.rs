@@ -5,6 +5,9 @@ mod layer_norm;
 mod model;
 mod stack;
 
+#[cfg(test)]
+pub mod test_utils;
+
 pub use attention::{
     AttentionOutput, EncoderOrDecoder, T5Attention, T5AttentionConfig, T5AttentionInput,
     T5CrossAttention, T5CrossAttentionConfig, T5CrossAttentionInput, T5SelfAttention,
