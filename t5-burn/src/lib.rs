@@ -3,6 +3,7 @@ mod block;
 mod feed_forward;
 mod layer_norm;
 mod model;
+mod pretrained;
 mod stack;
 
 #[cfg(test)]
@@ -18,5 +19,11 @@ pub use feed_forward::{
     T5DenseGatedAct, T5DenseGatedActConfig, T5FeedForward, T5FeedForwardConfig,
 };
 pub use layer_norm::{T5LayerNorm, T5LayerNormConfig};
-pub use model::{T5Model, T5ModelConfig};
+pub use model::{
+    T5ForConditionalGeneration, T5ForConditionalGenerationConfig, T5ForConditionalGenerationInput,
+    T5Model, T5ModelConfig, T5ModelInput, T5ModelOutput,
+};
+pub use pretrained::{
+    load_pretrained_t5, load_pretrained_t5_for_conditional_generation, PretrainedError, T5Variant,
+};
 pub use stack::{T5Stack, T5StackConfig};

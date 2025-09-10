@@ -308,6 +308,9 @@ impl<B: Backend> T5Stack<B> {
             };
 
             // Create a simplified layer config for now
+            // For T5, the correct d_kv = d_model / num_heads
+            let num_heads = 8;
+            let d_kv = d_model / num_heads;
             let layer_config = T5BlockConfig {
                 ty: if is_decoder {
                     EncoderOrDecoder::Decoder
@@ -318,8 +321,8 @@ impl<B: Backend> T5Stack<B> {
                 relative_attention_max_distance: 128,
                 d_model,
                 d_ff: d_model * 4,
-                key_value_proj_dim: d_model,
-                num_heads: 8,
+                key_value_proj_dim: d_kv,
+                num_heads,
                 layer_norm_epsilon: 1e-6,
                 dropout_rate: 0.0,
                 has_relative_attention_bias: layer_idx == 0,

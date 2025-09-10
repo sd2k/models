@@ -5,13 +5,9 @@ use crate::attention::{
 };
 use burn::prelude::*;
 use burn_ndarray::NdArrayTensor;
-use ndarray::{Array1, Array2, Array3, ArrayD, IxDyn};
+use ndarray::{Array1, Array2, Array3};
 use numpy::ToPyArray;
-use pyo3::{
-    PyResult, Python,
-    ffi::c_str,
-    types::{PyDict, PyDictMethods},
-};
+use pyo3::{PyResult, Python, ffi::c_str, types::{PyDict, PyDictMethods}};
 
 pub type TestBackend = burn_ndarray::NdArray<f64>;
 
@@ -32,7 +28,7 @@ pub struct T5SelfAttentionWeights {
 
 /// Extract weights from a T5SelfAttention module
 pub fn extract_t5_self_attention_weights<B: Backend>(
-    module: &T5SelfAttention<B>,
+    _module: &T5SelfAttention<B>,
 ) -> T5SelfAttentionWeights {
     // Note: This is a conceptual implementation. The actual implementation
     // would depend on how burn exposes module parameters. You might need
@@ -62,7 +58,7 @@ pub fn create_deterministic_t5_self_attention(
     device: &<TestBackend as Backend>::Device,
 ) -> T5SelfAttention<TestBackend> {
     // Create the module
-    let mut module = config.init::<TestBackend>(device);
+    let module = config.init::<TestBackend>(device);
 
     // Set deterministic weights
     // Note: This would require implementing parameter setting methods
@@ -73,7 +69,7 @@ pub fn create_deterministic_t5_self_attention(
 /// Set up weights in a PyTorch T5LayerSelfAttention to match the Rust implementation
 pub fn setup_pytorch_weights_from_rust(
     py: Python,
-    locals: &PyDict,
+    locals: &pyo3::Bound<'_, PyDict>,
     weights: &T5SelfAttentionWeights,
 ) -> PyResult<()> {
     // Convert weights to Python arrays
@@ -146,7 +142,7 @@ pub fn test_t5_self_attention_comparison() {
     let burn_input = Tensor::<TestBackend, 3>::from_data(
         TensorData::new(
             input_data.clone(),
-            [batch_size, seq_length, hidden_dim].into(),
+            [batch_size, seq_length, hidden_dim],
         ),
         &device,
     );
